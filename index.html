@@ -1,0 +1,530 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Microphone Waveform Visualizer</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: #f3f5f4;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: #172329;
+    }
+
+    .studio {
+      width: 100%;
+      max-width: 900px;
+      overflow: hidden;
+      border-radius: 24px;
+      background: #1b564a;
+      color: #f3fbf8;
+      box-shadow: 0 22px 65px #132b3117;
+    }
+
+    .studio-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 22px 26px;
+      border-bottom: 1px solid #ffffff20;
+    }
+
+    .studio-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #849b9b;
+    }
+
+    .status-dot.live {
+      background: #73f2c0;
+      box-shadow: 0 0 0 5px #73f2c01b;
+    }
+
+    .status {
+      color: #b5c8c5;
+      font-size: 12px;
+    }
+
+    .visual-area {
+      padding: clamp(18px, 4vw, 34px);
+    }
+
+    .canvas-wrap {
+      position: relative;
+      height: clamp(220px, 32vw, 330px);
+      overflow: hidden;
+      border: 1px solid #ffffff17;
+      border-radius: 16px;
+      background: #0d2023;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .canvas-label,
+    .canvas-time {
+      position: absolute;
+      top: 15px;
+      pointer-events: none;
+    }
+
+    .canvas-label {
+      left: 18px;
+      color: #77908f;
+      font-size: 10px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    .canvas-time {
+      right: 18px;
+      color: #b5d2c8;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin-top: 22px;
+      flex-wrap: wrap;
+    }
+
+    .primary-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 23px;
+      border: 0;
+      border-radius: 999px;
+      background: #73f2c0;
+      color: #102a25;
+      font: 700 14px system-ui, sans-serif;
+      cursor: pointer;
+      transition: transform .15s, filter .15s;
+    }
+
+    .primary-btn:hover {
+      filter: brightness(1.05);
+      transform: translateY(-1px);
+    }
+
+    .primary-btn:focus-visible {
+      outline: 3px solid white;
+      outline-offset: 3px;
+    }
+
+    .primary-btn:disabled {
+      opacity: .55;
+      cursor: wait;
+    }
+
+    .btn-icon.play {
+      width: 0;
+      height: 0;
+      border-top: 6px solid transparent;
+      border-bottom: 6px solid transparent;
+      border-left: 9px solid currentColor;
+    }
+
+    .btn-icon.stop {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      background: currentColor;
+    }
+
+    .controls-hint {
+      color: #a4bcba;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .footer-note {
+      max-width: 900px;
+      margin: 20px 2px 0;
+      color: #667579;
+      font-size: 12px;
+      line-height: 1.65;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 16px;
+      }
+
+      .studio-head {
+        padding: 18px;
+      }
+
+      .visual-area {
+        padding: 14px;
+      }
+
+      .controls {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .primary-btn {
+        justify-content: center;
+        width: 100%;
+      }
+
+      .canvas-wrap {
+        height: 230px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <section class="studio" aria-label="Live microphone waveform visualizer">
+      <div class="studio-head">
+        <div class="studio-title">
+          <span class="status-dot" id="statusDot"></span>
+          <span>FREQ waveform visualiser</span>
+        </div>
+        <div class="status" id="statusText" role="status" aria-live="polite">
+          Microphone is off
+        </div>
+      </div>
+
+      <div class="visual-area">
+        <div class="canvas-wrap">
+          <span class="canvas-label">Amplitude / time</span>
+          <span class="canvas-time" id="clock">00:00.0</span>
+          <canvas id="waveform" aria-label="Live waveform display"></canvas>
+        </div>
+
+        <div class="controls">
+          <button class="primary-btn" id="toggleBtn" type="button">
+            <span class="btn-icon play" id="btnIcon" aria-hidden="true"></span>
+            <span id="btnText">Start microphone</span>
+          </button>
+
+          <div class="controls-hint" id="hintText">
+            Make sure to allow microphone access!
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="footer-note">
+      Audio is processed locally and isn't sent to any servers.
+    </p>
+  </main>
+
+  <script>
+    (() => {
+      const canvas = document.getElementById("waveform");
+      const ctx = canvas.getContext("2d");
+
+      const toggleBtn = document.getElementById("toggleBtn");
+      const btnText = document.getElementById("btnText");
+      const btnIcon = document.getElementById("btnIcon");
+      const statusText = document.getElementById("statusText");
+      const statusDot = document.getElementById("statusDot");
+      const hintText = document.getElementById("hintText");
+      const clockText = document.getElementById("clock");
+
+      let stream = null;
+      let audioContext = null;
+      let analyser = null;
+      let source = null;
+      let frameId = null;
+      let startedAt = 0;
+      let elapsedBeforeStart = 0;
+      let running = false;
+      let timeData = null;
+
+      function resizeCanvas() {
+        const rect = canvas.getBoundingClientRect();
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+        canvas.width = Math.max(1, Math.round(rect.width * dpr));
+        canvas.height = Math.max(1, Math.round(rect.height * dpr));
+
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawIdle();
+      }
+
+      function drawGrid(width, height) {
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = "#0d2023";
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "#234044";
+
+        for (let x = 0; x <= width; x += 40) {
+          ctx.beginPath();
+          ctx.moveTo(x + 0.5, 0);
+          ctx.lineTo(x + 0.5, height);
+          ctx.stroke();
+        }
+
+        for (let y = 0; y <= height; y += 32) {
+          ctx.beginPath();
+          ctx.moveTo(0, y + 0.5);
+          ctx.lineTo(width, y + 0.5);
+          ctx.stroke();
+        }
+
+        ctx.strokeStyle = "#42645e";
+        ctx.setLineDash([4, 6]);
+        ctx.beginPath();
+        ctx.moveTo(0, height / 2);
+        ctx.lineTo(width, height / 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      function drawIdle() {
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+
+        if (!width || !height) return;
+
+        drawGrid(width, height);
+
+        ctx.beginPath();
+        ctx.moveTo(0, height / 2);
+
+        for (let x = 0; x <= width; x++) {
+          const fade = Math.sin(Math.PI * x / width);
+          const y = height / 2
+            + Math.sin(x * 0.045) * 2.2 * fade
+            + Math.sin(x * 0.13) * 0.8 * fade;
+
+          ctx.lineTo(x, y);
+        }
+
+        ctx.strokeStyle = "#73f2c0";
+        ctx.globalAlpha = 0.5;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+
+      function drawWave() {
+        if (!running || !analyser) return;
+
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+
+        if (!width || !height) {
+          frameId = requestAnimationFrame(drawWave);
+          return;
+        }
+
+        analyser.getByteTimeDomainData(timeData);
+        drawGrid(width, height);
+
+        // Draw the live audio waveform.
+        ctx.beginPath();
+
+        for (let i = 0; i < timeData.length; i++) {
+          const x = i / (timeData.length - 1) * width;
+          const y = (timeData[i] / 255) * height;
+
+          if (i === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+
+        ctx.lineWidth = 2.2;
+        ctx.strokeStyle = "#73f2c0";
+        ctx.shadowColor = "#73f2c0";
+        ctx.shadowBlur = 8;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // Add a subtle glow beneath the waveform.
+        ctx.lineTo(width, height / 2);
+        ctx.lineTo(0, height / 2);
+        ctx.closePath();
+
+        const gradient = ctx.createLinearGradient(0, 0, 0, height);
+        gradient.addColorStop(0, "rgba(115,242,192,.02)");
+        gradient.addColorStop(0.5, "rgba(115,242,192,.12)");
+        gradient.addColorStop(1, "rgba(115,242,192,.02)");
+
+        ctx.fillStyle = gradient;
+        ctx.fill();
+
+        // Update elapsed recording time.
+        const elapsed = elapsedBeforeStart + (performance.now() - startedAt);
+        const tenths = Math.floor(elapsed / 100);
+        const mins = String(Math.floor(tenths / 600)).padStart(2, "0");
+        const secs = String(Math.floor(tenths / 10) % 60).padStart(2, "0");
+
+        clockText.textContent = `${mins}:${secs}.${tenths % 10}`;
+
+        frameId = requestAnimationFrame(drawWave);
+      }
+
+      async function start() {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          statusText.textContent = "Microphone unavailable";
+          hintText.textContent =
+            "Use a modern browser over HTTPS or localhost to access the microphone.";
+          return;
+        }
+
+        toggleBtn.disabled = true;
+        statusText.textContent = "Waiting for permission…";
+
+        try {
+          // Capture sound directly from the device microphone.
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false
+            },
+            video: false
+          });
+
+          audioContext = new (
+            window.AudioContext || window.webkitAudioContext
+          )();
+
+          if (audioContext.state === "suspended") {
+            await audioContext.resume();
+          }
+
+          analyser = audioContext.createAnalyser();
+          analyser.fftSize = 2048;
+          analyser.smoothingTimeConstant = 0.72;
+
+          timeData = new Uint8Array(analyser.fftSize);
+
+          source = audioContext.createMediaStreamSource(stream);
+          source.connect(analyser);
+
+          running = true;
+          startedAt = performance.now();
+
+          toggleBtn.setAttribute("aria-label", "Stop microphone");
+          btnText.textContent = "Stop microphone";
+          btnIcon.className = "btn-icon stop";
+
+          statusText.textContent = "Listening live";
+          statusDot.classList.add("live");
+
+          hintText.innerHTML =
+            "Speak, clap, or make a little noise to see the waveform.<br>" +
+            "Press stop to release your microphone.";
+
+          drawWave();
+        } catch (error) {
+          const messages = {
+            NotAllowedError:
+              "Microphone permission was denied. Allow access in browser settings.",
+            NotFoundError:
+              "No microphone was found. Connect or enable one and try again.",
+            NotReadableError:
+              "The microphone may be in use by another app. Close it and try again."
+          };
+
+          statusText.textContent = "Could not start microphone";
+          hintText.textContent = messages[error.name]
+            || `Unable to access microphone: ${error.message || "unknown error"}`;
+
+          stop(false);
+        } finally {
+          toggleBtn.disabled = false;
+        }
+      }
+
+      function stop(updateStatus = true) {
+        if (running) {
+          elapsedBeforeStart += performance.now() - startedAt;
+        }
+
+        running = false;
+
+        if (frameId !== null) {
+          cancelAnimationFrame(frameId);
+        }
+
+        frameId = null;
+
+        if (source) {
+          try {
+            source.disconnect();
+          } catch (_) {}
+          source = null;
+        }
+
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+          stream = null;
+        }
+
+        if (audioContext) {
+          const oldContext = audioContext;
+          audioContext = null;
+          analyser = null;
+          oldContext.close().catch(() => {});
+        }
+
+        statusDot.classList.remove("live");
+        btnText.textContent = "Start microphone";
+        btnIcon.className = "btn-icon play";
+        toggleBtn.setAttribute("aria-label", "Start microphone");
+
+        if (updateStatus) {
+          statusText.textContent = "Microphone is off";
+          hintText.innerHTML =
+            "Make sure to allow microphone access!<br>";
+        }
+
+        drawIdle();
+      }
+
+      toggleBtn.addEventListener("click", () => {
+        if (running) {
+          stop();
+        } else {
+          start();
+        }
+      });
+
+      window.addEventListener("resize", resizeCanvas);
+
+      resizeCanvas();
+    })();
+  </script>
+</body>
+</html>
